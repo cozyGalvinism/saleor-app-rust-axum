@@ -33,12 +33,12 @@ async fn main() -> anyhow::Result<()> {
     
     info!("initializing router");
 
-    let acl_store = MemoryStore::default();
+    let session_store = MemoryStore::default();
     let session_service = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|_: BoxError| async {
             StatusCode::BAD_REQUEST
         }))
-        .layer(SessionManagerLayer::new(acl_store).with_secure(true).with_same_site(tower_sessions::cookie::SameSite::None));
+        .layer(SessionManagerLayer::new(session_store).with_secure(true).with_same_site(tower_sessions::cookie::SameSite::None));
 
     let apl_layer = SaleorAplLayer::new(FileAplStore);
     let auth_layer = SaleorAuthLayer::with_permissions(&[SaleorPermission::ManageProducts]);
