@@ -1,7 +1,7 @@
-use std::{sync::Arc, future::Future, pin::Pin, time::{SystemTime, Duration}};
+use std::{sync::Arc, future::Future, pin::Pin, time::{SystemTime, Duration}, ops::Deref};
 
 use async_trait::async_trait;
-use axum::{http::{Request, HeaderMap, HeaderValue}, response::{Response, IntoResponse}, middleware::Next, body::Body};
+use axum::{http::{Request, HeaderMap, HeaderValue, request::Parts}, response::{Response, IntoResponse}, middleware::Next, body::Body, extract::FromRequestParts};
 use jsonwebtoken::{jwk::JwkSet, DecodingKey};
 use reqwest::{StatusCode, header::{HOST, AUTHORIZATION}};
 use serde::{Serialize, Deserialize};
@@ -9,6 +9,17 @@ use tower::{Layer, Service};
 use tower_sessions::Session;
 
 use super::SaleorPermission;
+
+mod file;
+
+pub use file::FileAplStore;
+
+#[async_trait]
+pub trait AplStore: Send + Sync + 'static {
+    async fn get(&self, apl_id: &AplId) -> Option<AuthData>;
+    async fn set(&self, apl_id: &AplId, auth_data: AuthData);
+    async fn remove(&self, apl_id: &AplId);
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +40,7 @@ impl AplId {
     }
 
     pub fn from_api_url(api_url: &str) -> AplId {
-        Self(format!("{}:{}", env!("CARGO_PKG_NAME").to_string(), api_url))
+        Self(format!("{}:{}", env!("CARGO_PKG_NAME"), api_url))
     }
 }
 
@@ -60,8 +71,8 @@ struct Claims {
     user_permissions: Vec<SaleorPermission>,
 }
 
-fn verify_jwt(auth_data: &AuthData, token: &str, required_permissions: &[SaleorPermission]) -> Result<(), String> {
-    let jwks = serde_json::from_str::<'_, JwkSet>(auth_data.jwks.as_ref().unwrap())
+pub fn verify_jwt(jwks: &str, token: &str, required_permissions: &[SaleorPermission]) -> Result<(), String> {
+    let jwks = serde_json::from_str::<'_, JwkSet>(jwks)
         .map_err(|e| format!("unable to deserialize jwks: {}", e))?;
     let header = jsonwebtoken::decode_header(token).map_err(|e| format!("unable to decode jwt header: {}", e))?;
     let kid = match header.kid {
@@ -92,14 +103,97 @@ fn verify_jwt(auth_data: &AuthData, token: &str, required_permissions: &[SaleorP
 }
 
 #[derive(Clone)]
+pub struct SaleorApl {
+    inner: Arc<dyn AplStore>,
+}
+
+impl Deref for SaleorApl {
+    type Target = Arc<dyn AplStore>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for SaleorApl
+where
+    S: Sync + Send,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts.extensions.get::<SaleorApl>().cloned().ok_or((StatusCode::INTERNAL_SERVER_ERROR, "apl store not found in request extensions").into_response())
+    }
+}
+
+#[derive(Clone)]
+pub struct SaleorAplService<S> {
+    inner: S,
+    apl_store: Arc<dyn AplStore>,
+}
+
+impl<S> Service<Request<Body>> for SaleorAplService<S>
+where
+    S: Service<Request<Body>, Response = Response> + Clone + Send + 'static,
+    S::Future: Send + 'static
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send +'static>>;
+
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
+        let apl_store = self.apl_store.clone();
+        let clone = self.inner.clone();
+        let mut inner = std::mem::replace(&mut self.inner, clone);
+        Box::pin(async move {
+            let extensions = req.extensions_mut();
+            let already_set = extensions.get::<SaleorApl>().is_some();
+            if !already_set {
+                extensions.insert(SaleorApl { inner: apl_store.clone() });
+            }
+
+            let response: Response = inner.call(req).await?;
+            Ok(response)
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct SaleorAplLayer {
+    apl_store: Arc<dyn AplStore>,
+}
+
+impl SaleorAplLayer {
+    pub fn new(apl_store: impl AplStore) -> Self {
+        Self { apl_store: Arc::new(apl_store) }
+    }
+}
+
+impl<S> Layer<S> for SaleorAplLayer {
+    type Service = SaleorAplService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        SaleorAplService {
+            inner,
+            apl_store: self.apl_store.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct SaleorAuthLayer {
     required_permissions: Vec<SaleorPermission>,
 }
 
 impl SaleorAuthLayer {
-    pub fn with_permissions(required_permissions: &[SaleorPermission]) -> Self {
+    pub fn with_permissions(permissions: &[SaleorPermission]) -> Self {
         Self {
-            required_permissions: required_permissions.to_vec(),
+            required_permissions: permissions.to_vec(),
         }
     }
 }
@@ -139,30 +233,60 @@ where
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
         Box::pin(async move {
-            let Some(session) = request.extensions().get::<Session>() else {
-                return Ok((StatusCode::INTERNAL_SERVER_ERROR, "tower-sessions not loaded!").into_response());
-            };
-        
+            let apl_store = request
+                .extensions()
+                .get::<SaleorApl>()
+                .cloned()
+                .expect("apl store not found in request extensions");
+            let session = request
+                .extensions()
+                .get::<Session>()
+                .cloned()
+                .expect("tower-session not found in request extensions");
+
             let Some(_) = get_base_url(request.headers()) else {
-                return Ok((StatusCode::INTERNAL_SERVER_ERROR, "missing host header").into_response());
+                return Ok((StatusCode::BAD_REQUEST, "missing host header").into_response());
             };
         
-            let Some(api_url) = request.headers().get("saleor-api-url") else {
-                return Ok((StatusCode::INTERNAL_SERVER_ERROR, "missing saleor-api-url header").into_response());
+            let api_url = match request.headers().get("saleor-api-url") {
+                Some(api_url) => api_url.to_str().unwrap().to_string(),
+                None => {
+                    let Ok(Some(api_url)) = session.get::<String>("saleor_api_url") else {
+                        return Ok((StatusCode::BAD_REQUEST, "couldn't determine saleor api url").into_response());
+                    };
+        
+                    api_url
+                }
+            };
+
+            let jwks = match apl_store.get(&AplId::from_api_url(&api_url)).await {
+                Some(auth_data) => {
+                    match auth_data.jwks {
+                        Some(jwks) => jwks,
+                        None => {
+                            let jwks_url = format!("{}/.well-known/jwks.json", &api_url);
+                            reqwest::get(&jwks_url).await.unwrap().text().await.unwrap()
+                        }
+                    }
+                },
+                None => {
+                    let jwks_url = format!("{}/.well-known/jwks.json", &api_url);
+                    reqwest::get(&jwks_url).await.unwrap().text().await.unwrap()
+                }
             };
         
-            let Some(token) = request.headers().get(AUTHORIZATION) else {
-                return Ok((StatusCode::INTERNAL_SERVER_ERROR, "missing authorization header").into_response());
-            };
-            let bearer_token = token.to_str().unwrap().replace("Bearer ", "");
-            let Ok(auth_data) = session.get::<AuthData>(AplId::from_api_url(api_url.to_str().unwrap()).as_ref()) else {
-                return Ok((StatusCode::INTERNAL_SERVER_ERROR, "unable to deserialize authentication data").into_response());
-            };
-            let Some(auth_data) = auth_data else {
-                return Ok((StatusCode::UNAUTHORIZED, "authentication data not found").into_response());
+            let token = match request.headers().get(AUTHORIZATION) {
+                Some(token) => token.to_str().unwrap().replace("Bearer ", ""),
+                None => {
+                    let Ok(Some(token)) = session.get::<String>("token") else {
+                        return Ok((StatusCode::BAD_REQUEST, "couldn't determine token").into_response());
+                    };
+        
+                    token
+                }
             };
         
-            if let Err(e) = verify_jwt(&auth_data, &bearer_token, &required_permissions) {
+            if let Err(e) = verify_jwt(&jwks, &token, &required_permissions) {
                 return Ok((StatusCode::UNAUTHORIZED, e).into_response());
             }
 

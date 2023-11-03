@@ -1,7 +1,9 @@
 {
   "name": "frontend",
   "scripts": {
-    "format": "prettier --write --ignore-unknown ."
+    "format": "prettier --write --ignore-unknown .",
+    "dev": "tailwindcss -i styles/tailwind.css -o assets/main.css --watch",
+    "build-css": "tailwindcss -i styles/tailwind.css -o assets/main.css --minify"
   },
   "devDependencies": {
     "bun-types": "latest",

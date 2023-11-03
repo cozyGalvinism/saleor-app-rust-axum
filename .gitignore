@@ -1,3 +1,4 @@
 /target
 node_modules/
 assets/
+.saleor-app-auth.json

@@ -1,32 +1,41 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
-use axum::{response::{IntoResponse, Response}, http::{StatusCode, Request, header::CONTENT_TYPE}, extract::{FromRequest, Query}, Json, body::{Body, Bytes}};
+use axum::{response::{IntoResponse, Response}, http::{StatusCode, Request}, extract::{FromRequest, Query}, Json, body::Body};
 use serde::{Serialize, Deserialize};
 
 mod enums;
 mod apl;
+mod queries;
 
 pub use enums::*;
 pub use apl::*;
+pub use queries::*;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SaleorManifest {
     pub id: String,
     pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub required_saleor_version: Option<String>,
     pub name: String,
     pub permissions: Vec<SaleorAppPermission>,
     pub app_url: String,
     pub token_target_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub about: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data_privacy_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub homepage_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub support_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Vec<SaleorAppExtension>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub webhooks: Option<Vec<SaleorWebhookManifest>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand: Option<SaleorBrand>,
 }
 
@@ -142,6 +151,16 @@ impl SaleorRegisterResponse {
         })).into_response()
     }
 
+    pub fn api_url_parsing_failed() -> Response {
+        (StatusCode::BAD_REQUEST, Json(Self {
+            success: false,
+            error: Some(SaleorRegisterError {
+                code: "API_URL_PARSING_FAILED".to_string(),
+                message: "API URL parsing failed".to_string(),
+            }),
+        })).into_response()
+    }
+
     pub fn custom(code: &str, message: &str, status_code: StatusCode) -> Response {
         (status_code, Json(Self {
             success: false,
@@ -157,4 +176,10 @@ impl SaleorRegisterResponse {
 pub struct SaleorRegisterError {
     pub code: String,
     pub message: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SaleorClientAuthenticationRequest {
+    pub api_url: String,
+    pub token: String,
 }

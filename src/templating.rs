@@ -1,7 +1,7 @@
 use askama::Template;
 use axum::{response::{IntoResponse, Html}, http::StatusCode};
 
-struct HtmlTemplate<T>(T);
+pub struct HtmlTemplate<T>(pub T);
 
 impl<T> IntoResponse for HtmlTemplate<T>
 where
@@ -17,3 +17,7 @@ where
         }
     }
 }
+
+#[derive(Template)]
+#[template(path = "pages/hello.html")]
+pub struct ExamplePage;

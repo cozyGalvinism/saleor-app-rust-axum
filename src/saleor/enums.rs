@@ -16,6 +16,7 @@ pub enum SaleorPermission {
     ManageGiftCard,
     ManageMenus,
     ManageOrders,
+    ManageOrdersImport,
     ManagePages,
     ManagePageTypesAndAttributes,
     HandlePayments,

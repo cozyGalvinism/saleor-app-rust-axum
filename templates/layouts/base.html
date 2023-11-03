@@ -15,5 +15,26 @@
     <div id="content">
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+        const saleorApiUrl = new URL(window.location.href).searchParams.get('saleorApiUrl');
+
+        window.addEventListener("message", async (e) => {
+            let data = e.data;
+            if (data.type === "handshake" || data.type === "tokenRefresh") {
+                let data = e.data.payload;
+                await fetch("/api/auth", {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        api_url: saleorApiUrl,
+                        token: data.token
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
