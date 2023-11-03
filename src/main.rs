@@ -18,12 +18,15 @@ use crate::saleor::{SaleorAuthLayer, FileAplStore, SaleorPermission, SaleorAplLa
 mod saleor;
 mod templating;
 
+const APP_ID: &str = env!("CARGO_PKG_NAME");
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "saleor_logistiker=debug".into()),
+                .unwrap_or_else(|_| format!("{APP_ID}=debug").into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -87,10 +90,10 @@ pub async fn manifest(Host(host): Host, headers: HeaderMap) -> impl IntoResponse
     let base_url = format!("{}://{}", scheme, host);
 
     SaleorManifest {
-        id: env!("CARGO_PKG_NAME").to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        id: APP_ID.to_string(),
+        version: APP_VERSION.to_string(),
         required_saleor_version: None,
-        name: env!("CARGO_PKG_NAME").to_string(),
+        name: APP_ID.to_string(),
         permissions: vec![SaleorAppPermission::ManageProducts],
         app_url: base_url.clone(),
         token_target_url: format!("{}/api/register", base_url),
@@ -129,7 +132,7 @@ pub async fn register(apl: SaleorApl, ExtractRegisterRequest(request): ExtractRe
         domain: Some(request.saleor_domain),
         token: request.auth_token,
         saleor_api_url: request.saleor_api_url,
-        app_id: env!("CARGO_PKG_NAME").to_string(),
+        app_id: APP_ID.to_string(),
         jwks: Some(jwks),
     };
     apl.set(&Into::<AplId>::into(&auth_data), auth_data).await;

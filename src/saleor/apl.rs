@@ -40,7 +40,7 @@ impl AplId {
     }
 
     pub fn from_api_url(api_url: &str) -> AplId {
-        Self(format!("{}:{}", env!("CARGO_PKG_NAME"), api_url))
+        Self(format!("{}:{}", crate::APP_ID, api_url))
     }
 }
 
