@@ -16899,9 +16899,7 @@ type Mutation {
     Fields required to update site.
     """
     input: SiteDomainInput
-  ): ShopDomainUpdate @deprecated(reason: "
-
-  DEPRECATED: this mutation will be removed in Saleor 4.0. Use `PUBLIC_URL` environment variable instead.")
+  ): ShopDomainUpdate @deprecated(reason: "\n\nDEPRECATED: this mutation will be removed in Saleor 4.0. Use `PUBLIC_URL` environment variable instead.")
   """
   Updates shop settings. 
 
@@ -16921,9 +16919,7 @@ type Mutation {
 
   Requires one of the following permissions: MANAGE_SETTINGS.
   """
-  shopFetchTaxRates: ShopFetchTaxRates @deprecated(reason: "
-
-  DEPRECATED: this mutation will be removed in Saleor 4.0.")
+  shopFetchTaxRates: ShopFetchTaxRates @deprecated(reason: "\n\nDEPRECATED: this mutation will be removed in Saleor 4.0.")
   """
   Creates/updates translations for shop settings. 
 
@@ -16960,9 +16956,7 @@ type Mutation {
     Fields required to update shop order settings.
     """
     input: OrderSettingsUpdateInput!
-  ): OrderSettingsUpdate @deprecated(reason: "
-
-  DEPRECATED: this mutation will be removed in Saleor 4.0. Use `channelUpdate` mutation instead.")
+  ): OrderSettingsUpdate @deprecated(reason: "\n\nDEPRECATED: this mutation will be removed in Saleor 4.0. Use `channelUpdate` mutation instead.")
   """
   Update gift card settings. 
 
@@ -19685,9 +19679,7 @@ type Mutation {
     The ID of notification plugin.
     """
     pluginId: String
-  ): ExternalNotificationTrigger @deprecated(reason: "
-
-  DEPRECATED: this mutation will be removed in Saleor 4.0.")
+  ): ExternalNotificationTrigger @deprecated(reason: "\n\nDEPRECATED: this mutation will be removed in Saleor 4.0.")
   """
   Creates a new promotion.
 
