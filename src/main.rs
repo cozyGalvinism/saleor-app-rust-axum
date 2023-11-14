@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use askama::Template;
 use axum::{Router, routing::{get, post}, response::{IntoResponse, Html}, http::{StatusCode, HeaderMap}, error_handling::HandleErrorLayer, BoxError, extract::Host, Json};
-use graphql_client::GraphQLQuery;
+use cynic::{QueryBuilder, http::ReqwestExt};
 use reqwest::Url;
 use saleor::{SaleorManifest, SaleorAppPermission, ExtractRegisterRequest, AuthData, AplId, SaleorRegisterResponse, SaleorApl, SaleorClientAuthenticationRequest, SaleorAppExtension, SaleorAppExtensionMount, SaleorAppExtensionTarget, verify_jwt, MyId};
 use templating::HtmlTemplate;
@@ -163,18 +163,17 @@ pub async fn auth(session: Session, apl: SaleorApl, Json(auth_request): Json<Sal
         return (StatusCode::UNAUTHORIZED, e).into_response();
     }
 
-    let body = MyId::build_query(MyId::variables());
+    let operation = MyId::build(());
     let client = reqwest::Client::new();
-    let response = client.post(&auth_request.api_url).json(&body).send().await;
+    let response = client.post(&auth_request.api_url).run_graphql(operation).await;
     let response = match response {
         Ok(response) => response,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-    let response_body = response.json().await;
-    let _: graphql_client::Response<saleor::my_id::ResponseData> = match response_body {
-        Ok(response_body) => response_body,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-    };
+
+    if response.data.is_none() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "no data in response".to_string()).into_response();
+    }
 
     StatusCode::OK.into_response()
 }

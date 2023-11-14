@@ -20,16 +20,16 @@ This repository should easily get you started!
 
 ## The GraphQL schema doesn't work on my Saleor version! What do I do?
 
-Install [the graphql-client](https://github.com/graphql-rust/graphql-client/tree/main/graphql_client_cli):
+Install [cynic-cli](https://github.com/obmarg/cynic/tree/main/cynic-cli):
 
 ```sh
-cargo install graphql_client_cli --force
+cargo install --locked cynic-cli
 ```
 
-and then download the schema by running the `introspect-schema` command:
+and then download the schema by running the `introspect` command:
 
 ```sh
-graphql-client introspect-schema --output schema.graphql [YOUR_SALEOR_API_URL]
+cynic introspect [YOUR_SALEOR_API_URL] -o schemas/saleor.graphql
 ```
 
 It is recommended that you download the schema in any case, I don't have the time to update it with each Saleor version and you might not run the latest Saleor version anyways. You WILL have to modify the queries if you use a different schema and the current queries aren't working anymore (though the compiler will tell you about that).

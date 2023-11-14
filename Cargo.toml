@@ -10,7 +10,7 @@ anyhow = "1.0.75"
 askama = "0.12.1"
 async-trait = "0.1.74"
 axum = "0.6.20"
-graphql_client = "0.13.0"
+cynic = { version = "3.2.2", features = ["http-reqwest"] }
 jsonwebtoken = "9.1.0"
 reqwest = { version = "0.11.22", features = ["json"] }
 serde = { version = "1.0.190", features = ["derive"] }
@@ -21,3 +21,10 @@ tower-http = { version = "0.4.4", features = ["fs"] }
 tower-sessions = "0.4.1"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+[build-dependencies]
+cynic-codegen = { version = "3", features = ["rkyv"] }
+regex = "1.10.2"
+
+[dev-dependencies]
+insta = "1"

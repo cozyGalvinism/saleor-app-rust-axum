@@ -1,14 +1,14 @@
-use graphql_client::GraphQLQuery;
+#[cynic::schema("saleor")]
+mod schema {}
 
-#[derive(GraphQLQuery)]
-#[graphql(
-    schema_path = "schema.json",
-    query_path = "queries/my_id.graphql"
-)]
-pub struct MyId;
+#[derive(cynic::QueryFragment, Debug)]
+#[cynic(graphql_type = "Query")]
+pub struct MyId {
+    pub me: Option<MeId>,
+}
 
-impl MyId {
-    pub fn variables() -> my_id::Variables {
-        my_id::Variables {}
-    }
+#[derive(cynic::QueryFragment, Debug)]
+#[cynic(graphql_type = "User")]
+pub struct MeId {
+    pub id: cynic::Id,
 }
