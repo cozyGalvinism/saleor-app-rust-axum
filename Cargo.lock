@@ -1450,7 +1450,6 @@ dependencies = [
  "cynic-codegen",
  "insta",
  "jsonwebtoken",
- "regex",
  "reqwest",
  "serde",
  "serde_json",

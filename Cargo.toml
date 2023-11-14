@@ -24,7 +24,6 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 [build-dependencies]
 cynic-codegen = { version = "3", features = ["rkyv"] }
-regex = "1.10.2"
 
 [dev-dependencies]
 insta = "1"
